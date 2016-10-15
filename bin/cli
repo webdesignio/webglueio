@@ -1,0 +1,8 @@
+#!/bin/bash
+
+bin_dir=$(dirname "$0")
+tmp=$(mktemp -d webglueio-XXXXXX)
+cat data/website.json | \
+  "${bin_dir}/webglueio-prepare" -o "$tmp" static | \
+  "${bin_dir}/webglueio-scan" data | \
+  "${bin_dir}/webglueio-build" -o "$tmp"

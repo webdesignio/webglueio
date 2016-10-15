@@ -1,0 +1,34 @@
+{
+  "name": "@webdesignio/webglueio",
+  "version": "0.0.0",
+  "description": "Our build tool to be used in your dev project.",
+  "main": "index.js",
+  "bin": {
+    "webglueio": "bin/cli",
+    "webglueio-prepare": "bin/webglueio-prepare",
+    "webglueio-scan": "bin/webglueio-scan",
+    "webglueio-build": "bin/webglueio-build"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@webdesignio/floorman": "^1.1.0",
+    "bluebird": "^3.4.6",
+    "cheerio": "^0.22.0",
+    "co": "^4.6.0",
+    "concat-stream": "^1.5.2",
+    "glob": "^7.1.1",
+    "minimist": "^1.2.0",
+    "mkdirp": "^0.5.1",
+    "redux": "^3.6.0",
+    "redux-thunk": "^2.1.0",
+    "shelljs": "^0.7.4"
+  },
+  "devDependencies": {
+    "standard": "^8.3.0"
+  }
+}

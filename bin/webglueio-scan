@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+
+const { readFile } = require('fs')
+const glob = require('glob')
+const Bluebird = require('bluebird')
+
+const readFileAsync = Bluebird.promisify(readFile)
+
+process.on('unhandledRejection', err => { throw err })
+
+// Pipe header
+process.stdin.pipe(process.stdout, { end: false })
+process.stdin.on('end', () => {
+  glob('data/@(pages|objects)/*.json', (err, paths) => {
+    if (err) return error(err)
+    Promise.all(
+      paths.map(path => {
+        const m = path.match(/^data\/((pages|objects)\/[^.]+)\.json$/)
+        const template = m[1]
+        return readFileAsync(path)
+          .then(content => {
+            console.log(JSON.stringify({
+              template,
+              record: JSON.parse(content)
+            }))
+          })
+      })
+    )
+  })
+})
+
+function error (err) {
+  throw err
+}

@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+
+const { join } = require('path')
+const { readFile } = require('fs')
+const concat = require('concat-stream')
+const Bluebird = require('bluebird')
+const co = require('co')
+const { cp } = require('shelljs')
+const glob = require('glob')
+const minimist = require('minimist')
+
+const readFileAsync = Bluebird.promisify(readFile)
+const argv = minimist(process.argv.slice(2))
+process.on('unhandledRejection', e => { throw e })
+process.stdin.pipe(concat(s => co.wrap(main)(argv, s)))
+
+function * main ({ _: [assetPath], o: tmp }, body) {
+  const website = JSON.parse(body.toString())
+  const { languages } = website
+
+  languages.forEach(lang => {
+    cp('-R', assetPath, join(tmp, lang))
+  })
+  const metaContents = yield Promise.all(
+    glob.sync('@(pages|objects)/*.meta.json')
+      .map(p =>
+        readFileAsync(p, 'utf-8')
+          .then(content => [p, JSON.parse(content)])
+      )
+  )
+  const meta = metaContents
+    .reduce((metas, [path, content]) => {
+      const [type, name] = path.split(/[\/.]/)
+      return Object.assign({}, metas, {
+        [`${type}/${name}.html`]: content
+      })
+    }, {})
+  const templateContents = yield Promise.all(
+    glob.sync('@(pages|objects)/*.html')
+      .map(p => readFileAsync(p, 'utf-8').then(content => [p, content]))
+  )
+  const templates = templateContents
+    .reduce((templates, [path, content]) => {
+      const id = path.split('.')[0]
+      return Object.assign({}, templates, {
+        [id]: { content, meta: (meta[path] || {}) }
+      })
+    }, {})
+  const componentContents = yield Promise.all(
+    glob.sync('components/*.js')
+      .map(p => readFileAsync(p, 'utf-8').then(content => [p, content]))
+  )
+  const components = componentContents
+    .reduce((components, [path, content]) => {
+      const id = path.split(/[./]/)[1]
+      return Object.assign({}, components, {
+        [id]: content
+      })
+    }, {})
+  console.log(
+    JSON.stringify({
+      tmp,
+      website,
+      templates,
+      components
+    })
+  )
+}

@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+
+const vm = require('vm')
+const { writeFile } = require('fs')
+const { join } = require('path')
+const rl = require('readline')
+const Bluebird = require('bluebird')
+const cheerio = require('cheerio')
+const { createStore } = require('redux')
+const reduce = require('@webdesignio/floorman/reducers').default
+const mkdirp = require('mkdirp')
+const minimist = require('minimist')
+
+const writeFileAsync = Bluebird.promisify(writeFile)
+const mkdirpAsync = Bluebird.promisify(mkdirp)
+const argv = minimist(process.argv.slice(2))
+process.on('unhandledRejection', err => { throw err })
+
+// Build
+createBuilder({ tmp: argv.o, input: process.stdin })
+  .then(() => {
+    process.exit(0)
+  })
+
+function createBuilder ({ tmp, input }) {
+  const r = rl.createInterface({ input })
+  const promises = []
+  let header = null
+  r.on('line', line => {
+    const body = JSON.parse(line)
+    if (header == null) {
+      header = body
+      return
+    }
+    const { website, templates, components } = header
+    const [type, name] = body.template.split('/')
+    const dir =
+      type === 'objects'
+        ? join(name, body._id)
+        : (name === 'index' ? '' : name)
+    const template = templates[body.template]
+    const output = buildContext({
+      components,
+      record: body.record,
+      website,
+      meta: template.meta,
+      language: website.defaultLanguage,
+      input: template.content
+    })
+    promises.push(
+      Promise.all(
+        website.languages.map(lang =>
+          mkdirpAsync(join(tmp, lang, dir))
+            .then(() =>
+              writeFileAsync(join(tmp, lang, dir, 'index.html'), output)
+            )
+        )
+      )
+    )
+  })
+  return new Promise((resolve, reject) => {
+    r.on('close', () => resolve(Promise.all(promises)))
+  })
+}
+
+function buildContext ({ components, record, website, meta, language, input }) {
+  const $ = cheerio.load(input)
+  $('[data-webdesignio-remove]').remove()
+  $('[data-component]').each(function () {
+    const componentName = $(this).attr('data-component')
+    const component = components[componentName]
+    if (!component) return
+    const props = JSON.parse(($(this).attr('data-props') || '{}'))
+    $(this).attr('data-component', null)
+    $(this).attr('data-props', null)
+    $(this).html(renderComponent({ component, props }))
+  })
+  return $.html()
+
+  function renderComponent ({ component, props, stream }) {
+    const m = { exports: {} }
+    const state = {
+      locals: Object.assign(
+        { noLangFields: [] },
+        meta, { fields: record.fields }
+      ),
+      globals: { noLangFields: website.noLangFields, fields: website.fields },
+      defaultLanguage: website.defaultLanguage,
+      languages: website.languages,
+      currentLanguage: language,
+      isEditable: false
+    }
+    const store = createStore(reduce, state)
+    const context = vm.createContext({
+      module: m,
+      exports: m.exports,
+      __PROPS__: Object.assign({}, props, { store })
+    })
+    vm.runInContext(
+      `${component}\n__OUT__ = module.exports(__PROPS__)`,
+      context,
+      { timeout: 10000 }
+    )
+    return context.__OUT__
+  }
+}
