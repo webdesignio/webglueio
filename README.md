@@ -13,7 +13,7 @@ case that our service doesn't work.
     $ cd mywebsite/
     $ webglueio
 
-This produces a build directory `webfile-XXXXXX` in the website directory.  This can then be easily
+This produces a build directory `webglueio-XXXXXX` in the website directory.  This can then be easily
 deployed using your desired publishing tool (e.g. surge).
 
 ## One thing ...
